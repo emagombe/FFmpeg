@@ -325,8 +325,12 @@ static int video_frame_process(InputStream *ist, AVFrame *frame)
             ist->dec_ctx->pix_fmt);
     }
 
-    if(ist->top_field_first>=0)
+#if FFMPEG_OPT_TOP
+    if(ist->top_field_first>=0) {
+        av_log(ist, AV_LOG_WARNING, "-top is deprecated, use the setfield filter instead\n");
         frame->flags |= AV_FRAME_FLAG_TOP_FIELD_FIRST;
+    }
+#endif
 
     if (frame->format == d->hwaccel_pix_fmt) {
         int err = hwaccel_retrieve_data(ist->dec_ctx, frame);
@@ -439,7 +443,9 @@ static int process_subtitle(InputStream *ist, AVFrame *frame)
         if (!ost->enc || ost->type != AVMEDIA_TYPE_SUBTITLE)
             continue;
 
-        enc_subtitle(output_files[ost->file_index], ost, subtitle);
+        ret = enc_subtitle(output_files[ost->file_index], ost, subtitle);
+        if (ret < 0)
+            return ret;
     }
 
     return 0;
@@ -534,8 +540,9 @@ static int send_filter_eof(InputStream *ist)
     return 0;
 }
 
-static int packet_decode(InputStream *ist, const AVPacket *pkt, AVFrame *frame)
+static int packet_decode(InputStream *ist, AVPacket *pkt, AVFrame *frame)
 {
+    const InputFile *ifile = input_files[ist->file_index];
     Decoder *d = ist->decoder;
     AVCodecContext *dec = ist->dec_ctx;
     const char *type_desc = av_get_media_type_string(dec->codec_type);
@@ -549,6 +556,11 @@ static int packet_decode(InputStream *ist, const AVPacket *pkt, AVFrame *frame)
     // skip the packet.
     if (pkt && pkt->size == 0)
         return 0;
+
+    if (pkt && ifile->format_nots) {
+        pkt->pts = AV_NOPTS_VALUE;
+        pkt->dts = AV_NOPTS_VALUE;
+    }
 
     ret = avcodec_send_packet(dec, pkt);
     if (ret < 0 && !(ret == AVERROR_EOF && !pkt)) {
@@ -610,9 +622,9 @@ static int packet_decode(InputStream *ist, const AVPacket *pkt, AVFrame *frame)
             av_frame_unref(frame);
             return AVERROR(ENOMEM);
         }
-        fd->pts                     = frame->pts;
-        fd->tb                      = dec->pkt_timebase;
-        fd->idx                     = dec->frame_num - 1;
+        fd->dec.pts                 = frame->pts;
+        fd->dec.tb                  = dec->pkt_timebase;
+        fd->dec.frame_num           = dec->frame_num - 1;
         fd->bits_per_raw_sample     = dec->bits_per_raw_sample;
 
         frame->time_base = dec->pkt_timebase;
@@ -814,7 +826,7 @@ finish:
     }
     // non-EOF errors here are all fatal
     if (ret < 0 && ret != AVERROR_EOF)
-        report_and_exit(ret);
+        return ret;
 
     // signal EOF to our downstreams
     if (ist->dec->type == AVMEDIA_TYPE_SUBTITLE)
@@ -823,7 +835,7 @@ finish:
         ret = send_filter_eof(ist);
         if (ret < 0) {
             av_log(NULL, AV_LOG_FATAL, "Error marking filters as finished\n");
-            exit_program(1);
+            return ret;
         }
     }
 
@@ -1113,14 +1125,14 @@ int dec_open(InputStream *ist)
     }
 
     if ((ret = avcodec_open2(ist->dec_ctx, codec, &ist->decoder_opts)) < 0) {
-        if (ret == AVERROR_EXPERIMENTAL)
-            exit_program(1);
-
         av_log(ist, AV_LOG_ERROR, "Error while opening decoder: %s\n",
                av_err2str(ret));
         return ret;
     }
-    assert_avoptions(ist->decoder_opts);
+
+    ret = check_avoptions(ist->decoder_opts);
+    if (ret < 0)
+        return ret;
 
     ret = dec_thread_start(ist);
     if (ret < 0) {
