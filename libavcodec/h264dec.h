@@ -43,6 +43,7 @@
 #include "h264qpel.h"
 #include "h274.h"
 #include "mpegutils.h"
+#include "threadframe.h"
 #include "videodsp.h"
 
 #define H264_MAX_PICTURE_COUNT 36
@@ -108,20 +109,19 @@ typedef struct H264Picture {
 
     AVFrame *f_grain;
 
-    AVBufferRef *qscale_table_buf;
+    int8_t *qscale_table_base;        ///< RefStruct reference
     int8_t *qscale_table;
 
-    AVBufferRef *motion_val_buf[2];
+    int16_t (*motion_val_base[2])[2]; ///< RefStruct reference
     int16_t (*motion_val[2])[2];
 
-    AVBufferRef *mb_type_buf;
+    uint32_t *mb_type_base;           ///< RefStruct reference
     uint32_t *mb_type;
 
     /// RefStruct reference for hardware accelerator private data
     void *hwaccel_picture_private;
 
-    AVBufferRef *ref_index_buf[2];
-    int8_t *ref_index[2];
+    int8_t *ref_index[2];   ///< RefStruct reference
 
     int field_poc[2];       ///< top/bottom POC
     int poc;                ///< frame POC
@@ -152,8 +152,8 @@ typedef struct H264Picture {
     int mb_width, mb_height;
     int mb_stride;
 
-    /* data points to an atomic_int */
-    AVBufferRef *decode_error_flags;
+    /// RefStruct reference; its pointee is shared between decoding threads.
+    atomic_int *decode_error_flags;
 } H264Picture;
 
 typedef struct H264Ref {
@@ -164,7 +164,7 @@ typedef struct H264Ref {
     int poc;
     int pic_id;
 
-    H264Picture *parent;
+    const H264Picture *parent;
 } H264Ref;
 
 typedef struct H264SliceContext {
@@ -547,11 +547,11 @@ typedef struct H264Context {
 
     H264SEIContext sei;
 
-    AVBufferPool *qscale_table_pool;
-    AVBufferPool *mb_type_pool;
-    AVBufferPool *motion_val_pool;
-    AVBufferPool *ref_index_pool;
-    AVBufferPool *decode_error_flags_pool;
+    struct FFRefStructPool *qscale_table_pool;
+    struct FFRefStructPool *mb_type_pool;
+    struct FFRefStructPool *motion_val_pool;
+    struct FFRefStructPool *ref_index_pool;
+    struct FFRefStructPool *decode_error_flags_pool;
     int ref2frm[MAX_SLICES][2][64];     ///< reference to frame number lists, used in the loop filter, the first 2 are for -2,-1
 } H264Context;
 
@@ -652,9 +652,9 @@ static av_always_inline int get_chroma_qp(const PPS *pps, int t, int qscale)
 
 int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup);
 
-int ff_h264_ref_picture(H264Context *h, H264Picture *dst, H264Picture *src);
-int ff_h264_replace_picture(H264Context *h, H264Picture *dst, const H264Picture *src);
-void ff_h264_unref_picture(H264Context *h, H264Picture *pic);
+int ff_h264_ref_picture(H264Picture *dst, const H264Picture *src);
+int ff_h264_replace_picture(H264Picture *dst, const H264Picture *src);
+void ff_h264_unref_picture(H264Picture *pic);
 
 void ff_h264_slice_context_init(H264Context *h, H264SliceContext *sl);
 
@@ -677,6 +677,6 @@ void ff_h264_flush_change(H264Context *h);
 
 void ff_h264_free_tables(H264Context *h);
 
-void ff_h264_set_erpic(ERPicture *dst, H264Picture *src);
+void ff_h264_set_erpic(ERPicture *dst, const H264Picture *src);
 
 #endif /* AVCODEC_H264DEC_H */
