@@ -63,12 +63,12 @@ function configure_ffmpeg {
     --disable-static \
     ${EXTRA_CONFIG} \
     --disable-everything \
-    --enable-parser=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
-    --enable-demuxer=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
-    --enable-decoder=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
+    --enable-parser=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm,pcm \
+    --enable-demuxer=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm,pcm \
+    --enable-decoder=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm,pcm \
     --enable-protocol=file \
     --enable-protocol=concat \
-    --enable-protocol=libvpx
+    --enable-protocol=libvpx \
     --disable-avdevice \
     --enable-avcodec \
     --enable-avformat \
