@@ -63,14 +63,16 @@ function configure_ffmpeg {
     --disable-static \
     ${EXTRA_CONFIG} \
     --disable-everything \
-    --enable-parser=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus \
-    --enable-demuxer=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus \
-    --enable-decoder=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus \
-    --enable-filters \
+    --enable-parser=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
+    --enable-demuxer=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
+    --enable-decoder=aac,wav,h264,mp3,mp4,ogg,mov,mkv,flac,mpeg4,vorbis,opus,webm \
+    --enable-protocol=file \
+    --enable-protocol=concat \
+    --enable-protocol=libvpx
     --disable-avdevice \
     --enable-avcodec \
     --enable-avformat \
-    --disable-symver \
+    --enable-symver \
     --disable-ffplay \
     --disable-ffprobe \
     --disable-network \
@@ -83,17 +85,17 @@ function configure_ffmpeg {
     --disable-avfilter \
     --disable-vaapi \
     --disable-vdpau \
-    --disable-pthreads \
+    --enable-pthreads \
     --disable-devices \
     --disable-dxva2 \
     --disable-debug \
     --enable-hwaccels \
-    --disable-parsers \
+    --enable-parsers \
     --disable-indevs \
     --disable-outdevs \
     --disable-postproc \
     --disable-pixelutils \
-    --disable-runtime-cpudetect
+    --enable-runtime-cpudetect
   return $?
 }
 
